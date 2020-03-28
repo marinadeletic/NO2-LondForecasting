@@ -1,0 +1,504 @@
+---
+title: "An Analysis of Nitrogen Dioxide Levels Over Time in London- ARIMA"
+author: "Marina Deletic"
+date: "Sem 2 2019"
+output: 
+  prettydoc::html_pretty:
+    theme: leonids
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  cache = TRUE,
+  fig.height = 10,
+  fig.width = 16,
+  fig.align = "center")
+
+library(tidyverse)
+library(fpp2)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+library(urca)
+```
+
+#Part A: 
+##Introduction
+
+This report will analyse and forecast the mean nitrogen dioxide levels in London. Nitrogen dioxide is an air pollutant that plays a big role in the production of photochemical smog, and adversely affects human health. In London, the capital of the United Kingdom, the levels of nitrogen dioxide have been alarmingly and illegally high since 2010 [1]. This gas is primarily produced by diesel vehicles and has severe repercussions such as shortening life expectancy, increasing the risk of dementia and asthma, and damaging children’s lung growth [2].
+ 
+Various measures have been taken by the authorities to curb this issue, such as cleaning up the bus fleet and introducing a toxicity charge in central London for the most polluting vehicles. A major initiative was the introduction of the Ultra-Low Emission Zone (ULEZ) in April 2019, which is the toughest emission standard adopted by any city in the world [3]. The ULEZ is an upgrade from the London Low Emission Zone (LEZ), a traffic pollution charge scheme with the aim of reducing the exhaust gas emissions of diesel-powered commercial vehicles in London and subsequently to tackle the public health crisis created by London’s air pollution. The LEZ started operating on 4 February 2008.
+ 
+The ULEZ requires that vans, lorries, coaches, buses, cars, motorbikes and all other vehicles will now need to meet new, stricter emission standards, or pay a daily ULEZ charge [4] . This also contributes to the Mayor’s aims for London to become a zero-carbon city with its entire transport system zero emission by 2050. Any diesel not conforming to Euro 6 emission standards and any petrol not conforming to Euro 4 emission standards will be affected by the London ULEZ. Petrol cars that meet the ULEZ standards are generally those registered with the DVLA (Driver and Vehicle Licensing Agency) after 2005, although cars that meet the standards have been available since 2001. Diesel cars that meet the standards are generally those registered with the DVLA after September 2015. For vans, the minimum standard for Petrol is Euro 4 and Diesel Euro 6 [5]
+ 
+However, many citizens and members of the Conservatives in the Greater London Assembly have opposed the implementation of the ULEZ, as the introduction of a daily £12.50 charge simply to use their cars, is going to come as a shock to many people. More than 3.5 million people live inside this zone and many more pass through it on a daily basis. They have also argued that the people hit hardest will be the poorest because many will not be able to afford to upgrade their vehicle to meet the ULEZ standards.
+ 
+With the implementation of the ULEZ in April 2019 which is part of a set of policies in the London Environmental Strategy (LES) to achieve the 2050 Zero Carbon objective, the emission of greenhouse gasses from vehicles should reduce significantly. Nitrogen dioxide can be found in exhaust emissions from motor vehicles and produces the tropospheric greenhouse gas 'ozone' via photochemical reactions in the atmosphere. Elevated levels of nitrogen dioxide (NO2) have also been associated with adverse health outcomes in children, including reduced lung function and increased rates of asthma [6]. Based on the annual average NO2 for 2016 from the London Atmospheric Emissions Inventory, multiple areas in London continue to exceed the annual average NO2 concentration of 40 µg/m3 set by the EU directive. Across Greater London, 24% of play spaces, 67% of private parks and 27% of public parks had average levels of NO2 that exceeded the EU limit for NO2. Rates of exceedance were higher in Inner London; open spaces in the City of London had the highest average NO2 values among all the London Boroughs. The closest play space for more than 250,000 children (14% of children) under 16 years old in Greater London had NO2 concentrations above the recommended levels [7]
+
+Due to the aforementioned reasons, there is a compelling case for the forecasting of the annual mean nitrogen dioxide levels in London. If the implemented policies in the London Environmental Strategy (LES) are not impactful enough to achieve the 2050 Zero Carbon Objective, a new strategy should be devised. Furthermore, the forecast will provide a better insight and understanding of these strategies, especially since the implementation of the ULEZ is  costly to the citizens who will have to pay a high price for it.
+
+
+#Part B:
+##Phase 1: Model Identification
+
+###Data and visulaisation 
+```{r import}
+data_full<- read.csv("monthly-averages_London.csv")
+no2<- ts(data_full$London.Mean.Background.Nitrogen.Dioxide..ug.m3.,frequency= 12,start=c(2008,1))
+```
+This report will analyse and forecast nitrogen dioxide levels in London based on a data set sourced from [The London government data base](https://data.london.gov.uk/dataset/london-average-air-quality-levels). The data set contains monthly average levels of a number of air pollution metrics such as nitrogen dioxide, ozone and sulphur dioxide levels measured both at roadside as well as background. This report will focus on levels measured in the background as they are less subject to variation based on specific road location and give a better overall outlook at levels in the greater London area. This data set has monthly observations collected from January 2008 - December 2018. The data has a frequency of `r frequency(no2)` and a total of `r length(no2)` observations for each measured variable. 
+
+
+ARIMA models and expoential smoothing models are a common approachs to time series forecasting . Unlike expenontial smoothing models, which are based on a description of the trend and seasonality and used in Assignment 1; ARIMA models and aim to discribe autocorrelation in the data. 
+
+To begin the ARIMA model formulation, an analysis of the time series plot is required to understand the features of the data set.
+
+```{r time series plot}
+autoplot(no2)+
+  ggtitle ("Average Monthly N02 levels in London") +
+  ylab("NO2 (ug/m3)") +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=16))
+```
+
+**Figure 1**: Average Monthly N02 levels in London
+
+Figure 1 demonstrates the monthly average nitrogen dioxide levels over time. It is evident that there is clear yearly seasonality with a repeating high to low pattern occurring every year. The seasonality pattern shows clear lower recorded levels of Nitrogen Dioxide in the middle of the year (summer months) and higher levels through the winter. The variation in the data also appears to slightly decrease over time, with larger variability in seasonality seen in the beginning of the data set, and on average declining with time. In other words, amplitude of the seasonal changes decreases with the overall trend. Additionally, there appears to be a linear downward trend, indicating that from 2008, the overall average nitrogen dioxide levels in London have decreased steadily. 
+
+Figure 1 also demonstrates what appears to be an outlier at the end of 2016, with a large spike in nitrogen dioxide levels when compared to peak levels observed from 2014 onward. This outlier was left in the data set as it is within an acceptable range of nitrogen dioxide levels expected. 
+   
+###Partitioning of data 
+```{r partitioning}
+training_no2 <- window(no2,end=c(2017,6))
+test_no2<-window(no2,start = c(2017,7))
+```
+The overall objective of this report is to develop a suitable ARIMA method which best forecasts the levels of NO2 in London. To analyse the most effective forecasting method, the data set is partitioned into a training set and a test set. The training set is used to train the model, from which the predicted forecasts are compared to the test set to assess the effectiveness and accuracy of the model.  
+
+The training data set ranges from January 2008 to June 2017, and has `r length(training_no2)` observations. The test set has data from July 2017 to December 2018 and has `r length(test_no2)` observations. This places 86% of the data in the training set.
+
+###Achieving stationarity in training data
+
+```{r time series plot training}
+autoplot(training_no2)+
+  ggtitle ("Average Monthly N02 levels in London over Training Set Period") +
+  ylab("NO2 (ug/m3)") +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=16))
+```
+
+**Figure 2**: Average Monthly N02 levels in London over training data set
+
+Figure 2 illustrates the same features observed in Figure 1: yearly seasonality, downward trend over time and declining variance over time. For ARIMA modeling the data set must be stationary. This means that the distribution of Nitrogen dioxide levels over time are not dependent on time. In otherwords it must have a constant mean, constant variance and have a constant covariance between constant lags, i.e. the covariance is only dependent on the number of time periods appart but not on the time period its self. 
+
+From Figure 2 it is concluded that the current data set has a non constant mean, non constant variance and does not display mean reverting behaviour characterised by stationary covariance. Hence transformation is necessary prior to ARIMA model development. 
+
+As the variance of seasonality decreases over time, it is said that the data set has multiplicative seasonality and a Box - Cox transformation is necessary to stabalise the variance. It is important to first stabilise the variance before stabilising the mean. The Box Cox lambda value was calclated to be `r BoxCox.lambda(training_no2)`, this value is close to 0, hence a log transformation was concluded to be appropriate. Additionally the log transformation ensures that the forecasts are non-negative.
+
+```{r Variance Stabilised transformations}
+training_stat <- training_no2%>%log()
+training_stat%>%autoplot()+
+  ggtitle ("Variance Stabilised with a log Transformation") +
+  ylab("NO2 (ug/m3)") +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=16))
+```
+
+**Figure 3**: Variance Stabilised with log transformation
+
+Figure 3 illustrates the same training data depicted in Figure 2 with the addition of a log transformation applied. It highlights the effects on stabalising the variance over time, demonstrating a much more stable variance over time. 
+
+The next step is to stabilise the mean, this process is done through a process of differencing. As the data demonstrates strong seasonal patterns, a seasonal difference is applied to stabilise the mean. The seasonality has a frequency of 12 months hence, for each observed value, the observed value 12 months previously is subtracted i.e. $y'_{t} =y_{t} - y_{t-12}$. By doing this the mean is stabilised with respect to each seasonal cycle. R's inbuilt function `nsdiffs` returns `r nsdiffs(training_stat)`, indicating that one seasonal difference is required to stabilise the mean after the variance has been stabilised. 
+
+```{r seasonal differencing}
+training_stat<- training_stat%>%diff(lag= 12)
+training_stat%>%autoplot()+
+  ggtitle ("Log transformation and Seasonal differencing") +
+  ylab("NO2 (ug/m3)") +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=16))
+
+```
+
+**Figure 4**: Mean stabilised with seasonal differencing and variance stabilised with log transformation of the training data set
+
+```{r stationarity kpss}
+kpss_test<- summary(ur.kpss(training_stat, use.lag=12))
+```
+From Figure 4, it is evident that the mean has been stabilised when compared to that dippicted in Figure 3. However, further tests should be conducted to ensure the data is statistically stationary. First, the R function `ndiffs` is shown to return `r ndiffs(training_stat)`, indicating no further first differencing is required. Additionally, a KPSS test is conducted on the transformed data, this test states the null hypothesis is that the data is stationary. The test statistic for the KPSS test was calculated to be `r kpss_test@teststat` with a 1% critical value of `r kpss_test@cval[4]`. As the tstat is less than the 1% critical value, the null is not rejected and the transformed data can be said to be stationary.
+
+With the data set statistically stationary, the ARIMA model identification process can be conducted. 
+
+###Initial ARIMA model identification
+After the time series data has been stationarized by differencing, the next step in fitting an ARIMA model is to determine whether AR or MA terms are needed to correct any autocorrelation that remains in the differenced series.
+
+An ARIMA model can be defined in the form: ARIMA(p,d,q)(P,D,Q)12, where p is the order of the AR non seasonal component, q is the order of the MA non seasonal component. d is the order of non- seasonal (first) differencing required to stabilised the data. Similarly P and Q  are the respective orders of the AR and MA seasonal components while D is the level of seasonal differencing applied. It should be noted that an MA process is a moving average model, this is a multiple regression with past errors used as regressors. Alternatively an AR process is an autoregressive model, a multiple regression with lagged values of yt as the predictors. 
+
+As only seasonal differncing was applied to the data set to achieve stationarity, it can be concluded that d=0 and D = 1. This will be true to all potential models identified.  
+
+The model identification process generally requires trial and error, for which the box-jenkins method is used to optimise the process and ensure a satisfactory model is identified. For the initial stage of the model identification, two conditions are considered:
+
+      when, p=0 and q>0
+      when, p>0 and q=0
+
+Subsiquently, the models will be tested for effectivness and their residuals are not statistically random, new models are revaluated taking a combination of the initially identified models such that both AR and MA processes are present in the model. i.e. p >0 and q >0.
+
+To begin the model identification process, the ACF and PCF of the stabilised data set needs to be examined. The ACF plot is a bar chart of the coefficients of correlation between a time series and lags of itself. The PACF plot is a plot of the partial correlation coefficients between the series and lags of itself. The partial correlation between two variables is the amount of correlation between them which is not explained by their mutual correlations with a specified set of other variables. In general if the PACF of the differenced series displays a sharp cutoff and/or the lag-1 autocorrelation is significant and positive then a AR term should be considered to be added to the model. The lag at which the PACF cuts off is the indicated number of AR terms, or the order to be added. If the ACF of the differenced series displays a sharp cutoff and/or the lag-1 autocorrelation is negative.i.e. if the series appears slightly "overdifferenced", then adding an MA term to the model should be considered. The lag at which the ACF cuts off is the indicated number of MA terms. 
+
+As the non seasonal differencing has been identified to be zero, d=0, and the original data had a non zero mean, all identified models should include a constant term. The addition of the constant term, will allow for a non-zero mean value constant to be added to the overall model, As a result, the long term forecast will follow a straight line with a slope equal to the mean of the differenced data. 
+
+```{r model id}
+ggtsdisplay(training_stat)
+```
+
+**Figure 5**: ACF and PACF of stationary training data 
+
+The ACF and PCF shown in Figure 5 illustrate some weak trends that could be attrubuted to different types of ARIMA processes. Key features include that the ACF appears to display a slight sinusoidal trend which could indicate an AR process and significant spikes at a lag of 12 on both ACF and PACF plots indicating at seasonal AR and MA processes. However because there is no distinctive trend that can be attributed to a single model, it is possible that the data contains both AR and MA processes. 
+
+The first condition identified where p=0 and q>0 will be examined. The ACF plot displays a significant spike at lag-1 on the ACF plot. So it is suggested that there is a probability that q=1, hence an MA(1) process shall be considered. This is the only significant spike observed in the first 12 lags, hence only an moving average model of order one is considered. While there are significant spikes present for lags greater than 12, it is likely that any models with orders greater than 12 would be subject to gross overfitting, hence these are not considered. Additionally, at lag 12, the frequency of the seasonality, there is a significant spike observed on the ACF plot. The order of the seasonal component of a MA model is estimated to be the number of significant spikes at seasonal lags e.i. 12, 24, 36, ect. As there is a significant spike at lag-12, a first order seasonal MA model is considered. i.e. Q =1. From this analysis the first initial model estimated is ARIMA(0,0,1)(0,1,1)12 with a constant. 
+
+
+The second condition identified where p>0 and q=0 is now examined. The PACF plot shows a statistically significant spike at lag-1, hence a non seasonal AR term of order 1, i.e. p=1, should be considered. As for the seasonal component there is a largely significant spike at a lag-12 on the PACF plot. This indicates that seasonal correction in the form of an AR process is required. As there is a significant spike at lag-12, a AR(1) process for the seasonal component is considered. i.e. P = 1. Therefore the second model identified is ARIMA(1,0,0)(1,1,0)12 with a constant.
+
+There also appears to be a spike at lag-24 that is almost statistically significant, therefore in addition to a P=1 seasonal component, an AR process with P=2, will also be considered. i.e. the seasonal AR process has an order of 2, as there are two spikes at the seasonal frequency lags. So finally an ARIMA(1,0,0)(2,1,0)12 with a constant model will also be tested as part of the Box-jenkin process for identifying models.
+
+Therfore the models being tested will be:
+- ARIMA(0,0,1)(0,1,1)12 + constant
+- ARIMA(1,0,0)(1,1,0)12 + constant
+- ARIMA(1,0,0)(2,1,0)12 + constant
+
+##Phase 2: Estimation and Testing
+###Fitting models
+```{r fitting}
+fit1<- Arima(training_no2,order= c(0,0,1), seasonal = c(0,1,1), lambda = 0, include.constant= TRUE)
+fit2<- Arima(training_no2,order= c(1,0,0), seasonal = c(1,1,0), lambda = 0, include.constant = TRUE)
+fit3<- Arima(training_no2,order= c(1,0,0), seasonal = c(2,1,0), lambda = 0, include.constant = TRUE)
+
+fit4<- auto.arima(training_no2, stepwise= FALSE, lambda = 0)
+```
+
+Using the training data, the models identified in the previous section were fitted with a log transformation (lamda = 0). Additionally, R's `auto.arima` function was used to determine the best model according to the Hyndman and Khandakar algorithm which selects the model by minimising the AICc. This method found the optimal model to be ARIMA(0,0,0)(2,1,0)12 with drift.
+
+It should be noted that this model is not unexpected, both P=2 and D = 1 processes where identified to be possible processes required in the initial identification process. It is possible for an AR term and an MA term to cancel each other's effects. As a result, both MA and AR processes of order 1 which were identified for the non seasonal component, are seen here to cancle out. Causing this model to have no non-seasonal components of the ARIMA model. Additionally, a constant is also added to the model as a drift term has been identified. 
+
+
+```{r parameters table}
+ parameters<- data.frame(
+  fit1 = c(fit1$aicc , fit1$coef[1:2],c(rep(NA,3)),fit1$coef[3]),
+  fit2 = c(fit2$aicc, c(rep(NA,2)), fit2$coef[1:2], NA, fit2$coef[3]),
+  fit3 = c(fit3$aicc, c(rep(NA,2)), fit3$coef),
+  fit4 = c(fit3$aicc, c(rep(NA,3)), fit4$coef),
+  
+  row.names = c("AICc",
+                         paste0(intToUtf8(952),1,intToUtf8(0xFF3E)),
+                         paste0(intToUtf8(920),1,intToUtf8(0xFF3E)),
+                         paste0(intToUtf8(966),1,intToUtf8(0xFF3E)), 
+                         paste0(intToUtf8(934),c(1:2),intToUtf8(0xFF3E)),
+                         "Drift"
+                         )
+  )
+
+colnames(parameters)<-c("ARIMA(0,0,1)(0,1,1)", "ARIMA(1,0,0)(1,1,0)", "ARIMA(1,0,0)(2,1,0)", "ARIMA(0,0,0)(2,1,0)")
+```
+
+**Table 1**: Parameter estimates of the ARIMA models and AICc values
+```{r print table}
+kable(parameters) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+```
+
+Table 1 illustrates all the estimated parameters and AICc for each of the 5 models. The $\phi\hat{}$ denotes the estimated AR coefficients, the $\theta\hat{}$ represents the estimated AR coefficients, $\Theta \hat{}$ signifys the estimated seasonal MA coeficients and $\Phi \hat{}$ marks the estimated seasonal AR coefficients. The Drift term signifys the constant or intercept of the model. 
+
+###Ranking Models
+The next step of the Box- Jenkins method, is to select the best models based on an information criteria. Because all the models have the same order of differencing the AICc information criteria can be used for model selection. AICc estimates the relative amount of information lost by a given model and corrects for small sample bias. Additionally,the RMSE can be used for model selection. The RMSE was calculated using a forecast interval of 24 months and was compared to the results partitioned in the test set. 
+
+```{r RMSE}
+fit1_rmse<- accuracy(forecast(fit1,h=24),test_no2)[2,"RMSE"]
+fit2_rmse<- accuracy(forecast(fit2,h=24),test_no2)[2,"RMSE"]
+fit3_rmse<- accuracy(forecast(fit3,h=24),test_no2)[2,"RMSE"]
+fit4_rmse<- accuracy(forecast(fit4,h=24),test_no2)[2,"RMSE"]
+```
+
+**Table 2**: ARIMA models ranked based on AICc
+```{r rank}
+fitquatity <- tibble(
+    Model= c("ARIMA(0,0,1)(0,1,1)", 
+                 "ARIMA(1,0,0)(1,1,0)", 
+                 "ARIMA(1,0,0)(2,1,0)", 
+                 "ARIMA(0,0,0)(2,1,0)"),
+    AICc= c(fit1$aicc, 
+            fit2$aicc,
+            fit3$aicc,
+            fit4$aicc),
+    
+     RMSE= c(fit1_rmse,
+            fit2_rmse,
+            fit3_rmse,
+            fit4_rmse)
+     )%>%
+  arrange(AICc)
+
+kable(fitquatity) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+```
+ 
+Using the `arrange` function, Table 2 illustrates that the models in accending order of AICc, the best models can be said to be those with the lowest AICc as they all have the same order of differencing applied to them. The model ARIMA(0,0,1)(0,1,1) has the lowest AICc of -103.83, followed selected by the R function `auto.arima`: ARIMA(0,0,0)(2,1,0). The RMSE results however return slightly different results. The ARIMA(0,0,1)(0,1,1) model still performs best when analysing RMSE with the lowest value. However ARIMA(1,0,0)(2,1,0) performs better than ARIMA(0,0,0)(2,1,0) with an RMSE of 2.97 compared to that of the ARIMA(0,0,0)(2,1,0) model which had a calculated RMSE of 2.99. 
+
+While there is a dispute here, the AICc information criterion is favoured as all the models have the same order of differencing and it takes into account the biases for added parameters. Hence,ARIMA(0,0,0)(2,1,0) and ARIMA(0,0,1)(0,1,1) are the two models that will be selected to further investigate and develope. 
+
+Interestingly, the two selected models are opposites, one illustrates a seasonal AR(2) process with no non-seasonal components, while the other is a MA(1) model with a seasonal MA(1) component. This maybe as a result of the mix model approach taken during model selection; whereby only models of strictly AR or MA where considered, whereas the optimal model may pretane both MA and AR processes. It should also be noted that the model with both seasonal AR(2) and non seasonal AR(1) preformed significantly poorer when compared to the model that only contained the seasonal AR(2) component. 
+
+
+###Diagnostic Checks
+The next step in the Box- Jenkins Methodology is to perform diagnostic checks on the residuals of each model. The residuals should be independent with a normal distribution centered at a mean of zero i.e. white noise. This can be tested with the Portmanteau test called the Ljung-Box test. This test defines the null hypothisis as: the data is independently distributed i.e. the correlations in the sample are zero, so that any observed correlations in the data result from randomness of the sampling process. And H1 as: the data is not independently distributed; it exhibits serial correlation.
+
+If the risiduals are independently distributed, it can be said that the model has captured all the structure in the data. However, if the residuals do not illustrate a white noise distribution, it indicates that there are uncaptured trends in the residuals. In this case the model should be reevaluated with the inention to capture these trends. 
+
+The function `checkresiduals` with a lag of 24 was used to perform the following analysis. A lag of 24 was chosen as the forecasts produced for this model require a forecast horizon of 24 months, hence the tests will check that residuals are not correlated up to 24 lags, ensuring the robustness of the forecast.  
+
+```{r include = FALSE}
+res_fit4<- checkresiduals(fit4, lag = 24, plot = FALSE)
+```
+
+```{r checkris fit4}
+checkresiduals(fit4, lag= 24, test = FALSE)
+```
+
+**Figure 6a**: Residual diagnostics of ARIMA(0,0,0)(2,1,0)
+
+
+```{r Pacf fit4}
+ggPacf(residuals(fit4))
+```
+
+**Figure 6b**: PACF of the residuals for ARIMA(0,0,0)(2,1,0) model 
+
+
+Figure 6a illustrates the ACF and distribution of the risduals of the seasonal AR(2) model found by the auto.arima function. It is clear from the density histogram that the residuals are normally distributed and have a mean of zero. Additionally the Ljung-Box test at 24 lags has a p value of `r res_fit4$p.value`. As this value is greater than a 5% critical value, there is not enough statistical evidence to reject the null hypothesis. So it is can be said that the risduals are white noise. The ARIMA(0,0,0)(2,1,0) model can be said to have captured the structure present in the data set, leaving risduals that are statistically random. 
+
+The ACF in Figure 6a and PACF in Figure 6b both illustrate a significant spike at lag 13. However, models with p or q values as high as 13 would likely cause dramatic overfitting, and hence are not practical. The current model is sufficient in producing white noise residuals. 
+
+```{r include= FALSE}
+res_fit1<- checkresiduals(fit1, lag = 24, plot = FALSE)
+```
+
+```{r checkris fit1}
+checkresiduals(fit1, lag = 24, test = FALSE)
+```
+
+**Figure 7a**: Residual diagnostics of ARIMA(0,0,1)(0,1,1)
+
+```{r Pacf fit1}
+ggPacf(residuals(fit1))
+```
+**Figure 7b**: PACF of the residuals for ARIMA(0,0,1)(0,1,1) model
+
+
+Figure 7a  illustrates the ACF and distribution of the residuals of the ARIMA(0,0,1)(0,1,1) model identified from the ACF and PACF. The density histogram of the residuals shows they are normally distributed.
+
+The Ljung-Box test at 24 lags has a p value of `r res_fit1$p.value`. As this value is smaller than a 5% critical value, there is enough statistical evidence to reject the null hypothesis. Hence, the ARIMA(0,0,1)(0,1,1) residuals cannot be considered as white noise. 
+
+Much like the previous model analysed, both ACF and PACF show significant spikes at lag 13. However as before using a model with p or q values as high as 13 would likely cause overfitting. The current model is sufficient in producing white noise residuals, hence no further modification is required. 
+
+According to these tests, only the ARIMA(0,0,0)(2,1,0) model sufficiently captures the structure of the data leaving only statistically random residuals. Hence further reidentification is necessary. A number of combined versions of the two models are trialled to see the effects of a mixed method model. 
+
+```{r  include= FALSE}
+fit5<- Arima(training_no2,order= c(0,0,1), seasonal = c(2,1,1), lambda = 0, include.constant = TRUE)
+ris5<- checkresiduals(fit5, lag = 24, plot= FALSE)
+rmse5<- accuracy(forecast(fit5,h=24),test_no2)[2,"RMSE"]
+
+fit6<- Arima(training_no2,order= c(0,0,0), seasonal = c(0,1,1), lambda = 0, include.constant = TRUE)
+ris6<- checkresiduals(fit6, lag = 24, plot = FALSE)
+rmse6<- accuracy(forecast(fit6,h=24),test_no2)[2,"RMSE"]
+
+fit7<- Arima(training_no2,order= c(0,0,0), seasonal = c(2,1,1), lambda = 0, include.constant = TRUE)
+ris7<- checkresiduals(fit7, lag = 24, plot = FALSE)
+rmse7<- accuracy(forecast(fit7,h=24),test_no2)[2,"RMSE"]
+
+fit8<- Arima(training_no2,order= c(0,0,1), seasonal = c(2,1,0), lambda = 0, include.constant = TRUE)
+ris8<- checkresiduals(fit8, lag = 24, plot = FALSE)
+rmse8<- accuracy(forecast(fit8,h=24),test_no2)[2,"RMSE"]
+```
+
+**Table 3**: Additional Models with their AICc, RMSE and Ljung-Box test p- values 
+```{r extra models }
+data.frame (
+  Models= c("ARIMA(0,0,1)(2,1,1) w/ drift", "ARIMA(0,0,0)(0,1,1) w/ drift", "ARIMA(0,0,0)(2,1,1) w/ drift", "ARIMA(0,0,1)(2,1,0) w/ drift"),
+  AICc= c(fit5$aicc, fit6$aicc, fit7$aicc, fit8$aicc),
+  RMSE = c(rmse5, rmse6, rmse7, rmse8),
+  p.value= c(ris5$p.value, ris6$p.value, ris7$p.value, ris8$p.value)
+  ) %>% arrange(AICc)%>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+```
+
+Table 3 illustrates that different permutations of these two models all produce models with residuals that are not statistically considered white noise as they have p values smaller than 0.05, with the exeption of ARIMA(0,0,1)(2,1,0) with drift. 
+
+The residuals of ARIMA(0,0,1)(2,1,0) with drift will be examined to ensure that this model has statistically significant white noise residuals.
+
+```{r checkres newfit}
+checkresiduals(fit8, lag = 24, test = FALSE)
+```
+
+**Figure 8a**: Residual diagnostics of ARIMA(0,0,1)(2,1,0)
+
+```{r Pacf fit8}
+ggPacf(residuals(fit8))
+```
+**Figure 8b**: PACF of the residuals for ARIMA(0,0,1)(2,1,0) model
+
+Figure 8a illustrates the ACF and distribution of the risduals of the ARIMA(0,0,1)(2,1,0) with drift model. It is clear from the density histogram that the residuals are normally distributed and have a mean of zero. Additionally the Ljung-Box test at 24 lags has a p value of `r ris8$p.value`. As this value is greater than a 5% critical value, there is not enough statistical evidence to reject the null hypothesis. So it is can be said that the risduals are white noise. The ARIMA(0,0,1)(2,1,0) model can be said to have sufficiently captured the structure present in the data set, leaving risduals that are statistically random. 
+
+The ARIMA(0,0,0)(2,1,0) has an AICc of `r  fit4$aicc` and an RMSE of `r fit4_rmse`, while that of the newly identified ARIMA(0,0,1)(2,1,0) model has AICc and RMSE of `r  fit8$aicc` and `r rmse8`. As both models pretain the same level of differencing the AICc is a better indication of accuracy. Additionally the ARIMA(0,0,0)(2,1,0) as fewer fitted parameters likely leading to less overfitting errors.
+
+Hence the ARIMA(0,0,0)(2,1,0) with drisft is model is identified to be the most useful for forecasting nitrogen dioxide levels in London. 
+
+The ARIMA(0,0,0)(2,1,0) with drift model can be written in back notation as follows:
+$$(1-\Theta_1 B^{12} - \Theta_2B^{24})(1-B^{12})y_t  = c + \epsilon_t $$
+It has a seasonal autoregressive component of 2 and a seasonal differencing as well as a drift
+
+##Phase 3: Application
+```{r fullmodel}
+final_model<- Arima(no2, order = c(0,0,0), seasonal = c(2,1,0), lambda = 0 , include.constant  = TRUE)
+
+```
+
+The final model was reproduced using the ARIMA(0,0,0)(2,1,0) with drift method with the entire data set. The following illustrates the final estimated models equation in backshift notation.
+
+$$ (1+0.6295B^{12} + 0.3052B^{24})(1- B^{12})y_t =-0.0028 + \epsilon_t $$
+
+###Forecast
+This new fully encapsulating model was used to forecast nitrogen dioxide levels in London for a future 24 month period. Figure 8 illustrates these forecasts. 
+```{r forecast}
+fc<- forecast(final_model,h=24, level = 95)
+autoplot(no2)+
+  autolayer(no2, series = "Collected Data")+
+  autolayer(fc, series = "ARIMA forecast")+
+  ggtitle ("Forecasts for monthly N02 levels in London using ARIMA(0,0,0)(2,1,0) with drift") +
+  ylab("NO2 (ug/m3)") +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=16))+
+  labs(colour = "Legend")
+```
+
+**Figure 8**: Forecasts for monthly N02 levels in London using ARIMA(0,0,0)(2,1,0) with drift
+
+From Figure 8 it is evident that the identified ARIMA model captures and appears to relatively acuratley forecast the future NO2 levels. It can be seen that the forecasts have both the observed seasonality present in the recorded data as well as shows the declining variance and slight downward trend which were identified in the first section of this report. In particular this continuation of trend is a positive sign, as lower nitrogen dioxide levels in the air have positive effects on the population of London. 
+
+The 95% confidence interval, highlighted in red, is within a reasonable range. It is slightly larger through the seasonal peaks, but this is expected as it has been observed that the winter months have higher levels of nitrogen dioxide as well as a higher variability in the observed levels. 
+
+Both the forecast and the prediction intervals appear to be within reason. These forecasts could be used to accurately develop policies and mitigation stratgies using these forecasts as benchmarks for future Nitrogen Dioxide levels in London.
+
+
+##Comparison of ARIMA with ETS 
+
+```{r comparison with ETS}
+fit.ets<- ets(no2)
+for.ets<- forecast(fit.ets,h=24, level = 95)
+```
+
+This report analysed only the use of ARIMA methods for forecasting the nitrogen dioxide levels in London. However, another commonly used time series modeling method are the exponential smoothing state space models, ETS. R's `ets` function selects an ETS model with the lowest AICc value. The ETS method chosen by the R function is described as `r fit.ets$method`. This indicates that the chosen model has multiplicative error, additive trend with dampening and multiplicative seasonality. 
+
+The selected ETS model has the following parameters:
+
+*Smoothing Parameters:*
+
+$\alpha =$ `r sprintf("%.6s",fit.ets$par[1])`
+
+$\beta$ = `r  sprintf("%.6s",fit.ets$par[2])`
+
+$\gamma$ = `r sprintf("%.6s",fit.ets$par[3])`
+
+*Initial States*
+```{r initial states}
+data.frame(
+  values= sprintf("%.6s",fit.ets$par[4:16]),
+  row.names = c("l0","b0",paste0("s",c(0:10)))
+  ) %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+        
+Both models were used to forecast a 24 month period, Figure 9 illustrates their respective forecasts.
+
+```{r ARIMA and ETS forecast plot}
+autoplot(no2)+
+  autolayer(fc, PI = FALSE, series = "ARIMA(0,0,0)(2,1,0) with drift")+
+  autolayer(for.ets, PI = FALSE, series = "ETS(M,A,M)" )+
+  ggtitle ("Forecasts for monthly N02 levels in London 
+           comparing optimised ARIMA and ETS model") +
+  ylab("NO2 (ug/m3)") +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=16))+
+  labs(colour = "Models")
+```
+
+**Figure 9 **: Forecasts for monthly N02 levels in London comparing optimal ARIMA and ETS models
+
+The ARIMA model appears to give forecasts with higher levels predicted for the winter months which experience much higher levels of Nitrogen Dioxide. From the graph, it is difficult to determine which model performs better, as they are both future forecasts for which the true levels can not be determined until they have occured. However, as these forecasts aim to help policy makers, the rules and enforcements should accomidate for the more severe projections. This will ensure that any implemented measures will be sufficient in tackling nitrogen dioxide in Londons air.  
+
+
+## Conclusion 
+In conclusion, it is imperative that the mean nitrogen dioxide levels in London are forecasted, to provide the authorities and citizens with an insight on the impacts of the policies that have been implemented. The future levels of NO2 are best modeled with an ARIMA(0,0,0)(2,1,0) with drift model. This study illustrates the seasonal nature of NO2 levels in London as well as the overall downward trend in levels. This is a positive for both citizens of London and the health of the earth. 
+
+While from forecasts it is clear that the levels of NO2 in London are decreasing over time, with these forecasts in hand, polititans will be able to devise better strategies to curb the issue of air pollution in London. These forecasts will also enable them to weigh the impact of the policies implemented and analyse if they are worth continuing with. This is especially important because certain policies, such as the ULEZ, come at a very high cost to the citizens.
+ 
+To reduce the severity of this issue, active transport should be promoted. The Transport Action Plan that was introduced in 2014 should be revived, and citizens should be incentivised accordingly for using active transport. For example, they can be awarded with tax rebates. Appropriate incentives would not only improve the health of Londoners but will also allow the environmental impact of this plan to come to fruition, especially since this plan was introduced in 2014. The revival of this plan would also be an initiative to achieve Goal 11 of the Sustainable Development Goals by the United Nations, that is to make cities inclusive, safe, resilient and sustainable.
+ 
+Next, the authorities can devise a plan to subsidise the charges of the London ULEZ scheme, as this would reduce the inequality within the United Kingdom. These subsidies can be awarded accordingly to citizens who are deserving of it and have been classed in the low income group. Although this does not directly decrease the level of air pollution in London, it will demonstrate that the authorities are concerned of the wellbeing of citizens, and this will encourage the citizens to get on board with the initiatives in place to better the environment and subsequently public health. This plan is also an initiative to achieve Goal 10 of the Sustainable Development Goals, that is to reduce inequality within and among nations.
+
+
+
+
+
+##References
+
+[1]   Carrington, D. (2018, January 30). London reaches legal air pollution limit just one month into the new year. Retrieved from https://www.theguardian.com/uk-news/2018/jan/30/london-reaches-legal-air-pollution-limit-just-one-month-into-the-new-year.
+
+[2]   The Guardian. (2019, January 5). London's ultra-low emission zone: good or bad idea? Retrieved from: https://www.theguardian.com/environment/2019/jan/05/londons-ultra-low-emission-zone-good-or-bad-idea
+
+[3]   Petit, C., Wentz, E., Randolph, B., Sanderson, D., Kelly, F., Beevers, S., & Reades, J. (1970, January 1). Tackling the Challenge of Growing Cities: An Informed Urbanisation Approach. Retrieved from https://link.springer.com/chapter/10.1007/978-981-13-6605-5_9
+
+[4]   Murray, Laura. PIA Victoria President [online]. Planning News, Vol. 45, No. 7, Aug 2019: 4. Availability: <https://search.informit.com.au/documentSummary;dn=547293336612437;res=IELENG> ISSN: 1329-2862.
+
+[5]   Ultra Low Emission Zones: what you need to know: RAC Drive. (n.d.). Retrieved from https://www.rac.co.uk/drive/advice/emissions/ultra-low-emission-zones/
+
+[6]   Contreras, G., & Platania, F. (2019). Economic and policy uncertainty in climate change mitigation: The London Smart City case scenario. Technological Forecasting and Social Change, 142, 384–393. doi: 10.1016/j.techfore.2018.07.018
+
+
+[7]   Sheridan, C. E., Roscoe, C. J., Gulliver, J., de Preux, L., & Fecht, D. (2019). Inequalities in Exposure to Nitrogen Dioxide in Parks and Playgrounds in Greater London. International journal of environmental research and public health, 16(17), 3194.
+
+
+
+##Appendix 
+**KPSS test results**
+```{r KPSS}
+kpss_test
+
+```
+
+**Residual diagnostic check results output**
+
+Model 1: ARIMA(0,0,1)(0,1,1)12
+```{r}
+res_fit1
+```
+
+Model 4: Auto.arima ARIMA(0,0,0)(2,1,0)12
+```{r}
+res_fit4
+```
+
+
+
+
+
+
+

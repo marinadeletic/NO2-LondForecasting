@@ -1,0 +1,377 @@
+---
+title: "An Analysis of Nitrogen Dioxide Levels Over Time in London"
+author: "Marina Deletic"
+date: "Sem 2 2019"
+output:
+  prettydoc::html_pretty:
+    theme: leonids
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  cache = TRUE,
+  fig.height = 6,
+  fig.width = 12,
+  fig.align = "center")
+
+library(tidyverse)
+library(fpp2)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+```
+
+##Introduction and Problem Definition 
+
+For this assignment, we have chosen to analyse and forecast the  mean nitrogen dioxide levels in London. Nitrogen dioxide is an air pollutant that plays a big role in the production of photochemical smog, and adversely affects human health. In London, the capital of the United Kingdom, the levels of nitrogen dioxide have been alarmingly and illegally high since 2010. This gas is primarily produced by diesel vehicles and has severe repercussions such as shortening life expectancy, increasing the risk of dementia and asthma, and damaging children’s lung growth (London's ultra-low emission zone: good or bad idea?, 2019)
+ 
+Various measures have been taken by the authorities to curb this issue, such as cleaning up the bus fleet and introducing a toxicity charge in central London for the most polluting vehicles. A major initiative was the introduction of the Ultra-Low Emission Zone (ULEZ) in April 2019, which is the toughest emission standard adopted by any city in the world. The ULEZ is an upgrade from the London Low Emission Zone (LEZ), a traffic pollution charge scheme with the aim of reducing the exhaust gas emissions of diesel-powered commercial vehicles in London and subsequently to tackle the public health crisis created by London’s air pollution. The LEZ started operating on 4 February 2008.
+ 
+The ULEZ requires that vans, lorries, coaches, buses, cars, motorbikes and all other vehicles will now need to meet new, stricter emission standards, or pay a daily ULEZ charge (Planning News, Vol. 45, No. 7, 2019). This also contributes to the Mayor’s aims for London to become a zero-carbon city with its entire transport system zero emission by 2050. Any diesel not conforming to Euro 6 emission standards and any petrol not conforming to Euro 4 emission standards will be affected by the London ULEZ. Petrol cars that meet the ULEZ standards are generally those registered with the DVLA (Driver and Vehicle Licensing Agency) after 2005, although cars that meet the standards have been available since 2001. Diesel cars that meet the standards are generally those registered with the DVLA after September 2015. For vans, the minimum standard for Petrol is Euro 4 and Diesel Euro 6 (Ultra Low Emission Zones: what you need to know: RAC D, 2019)
+ 
+However, many citizens and members of the Conservatives in the Greater London Assembly have opposed the implementation of the ULEZ, as the introduction of a daily £12.50 charge simply to use their cars, is going to come as a shock to many people. More than 3.5 million people live inside this zone and many more pass through it on a daily basis. They have also argued that the people hit hardest will be the poorest because many will not be able to afford to upgrade their vehicle to meet the ULEZ standards.
+ 
+With the implementation of the ULEZ in April 2019 which is part of a set of policies in the London Environmental Strategy (LES) to achieve the 2050 Zero Carbon objective, the emission of greenhouse gasses from vehicles should reduce significantly. Nitrogen dioxide can be found in exhaust emissions from motor vehicles and produces the tropospheric greenhouse gas 'ozone' via photochemical reactions in the atmosphere. Elevated levels of nitrogen dioxide (NO2) have also been associated with adverse health outcomes in children, including reduced lung function and increased rates of asthma (Economic and policy uncertainty in climate change mitigation: The London Smart City case scenario, 2019). Based on the annual average NO2 for 2016 from the London Atmospheric Emissions Inventory, multiple areas in London continue to exceed the annual average NO2 concentration of 40 µg/m3 set by the EU directive. Across Greater London, 24% of play spaces, 67% of private parks and 27% of public parks had average levels of NO2 that exceeded the EU limit for NO2. Rates of exceedance were higher in Inner London; open spaces in the City of London had the highest average NO2 values among all the London Boroughs. The closest play space for more than 250,000 children (14% of children) under 16 years old in Greater London had NO2 concentrations above the recommended levels (Inequalities in Exposure to Nitrogen Dioxide in Parks and Playgrounds in Greater London, 2019)
+
+Due to the aforementioned reasons, there is a compelling case for the forecasting of the annual mean nitrogen dioxide levels in London. If the implemented policies in the London Environmental Strategy (LES) are not impactful enough to achieve the 2050 Zero Carbon Objective, a new strategy should be devised. Furthermore, the forecast will provide a better insight and understanding of these strategies, especially since the implementation of the ULEZ is  costly to the citizens who will have to pay a high price for it.
+
+
+
+
+
+##Visualisation 
+
+```{r import}
+data_full<- read.csv("monthly-averages_London.csv")
+no2<- ts(data_full$London.Mean.Background.Nitrogen.Dioxide..ug.m3.,frequency= 12,start=c(2008,1))
+ozone<- ts(data_full$London.Mean.Background.Ozone..ug.m3., frequency = 12, start = c(2008,1))
+
+```
+
+This report will analyse and forecast nitrogen dioxide levels in London based on a data set sourced from [The London government data base](https://data.london.gov.uk/dataset/london-average-air-quality-levels). The data set contains monthly average levels of a number of air pollution metrics such as nitrogen dioxide, ozone and sulphur dioxide levels measured both at roadside as well as background. This report will focus on levels measured in the background as they are less subject to variation based on specific road location and give a better overall outlook at levels in the greater London area. This data set has monthly observations collected from January 2008 - December 2018. The data has a frequency of `r frequency(no2)` and a total of `r length(no2)` observations for each measured variable. 
+
+To begin the analysis a series of graphs have been produced to visualise the trends and seasonality present in the data.
+
+
+```{r time series plot}
+autoplot(no2)+
+  ggtitle ("Average Monthly N02 levels in London") +
+  ylab("NO2 (ug/m3)") +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=16))
+```
+**Figure 1**:Average Monthly N02 levels in London
+
+Figure 1 demonstrates the monthly average nitrogen dioxide levels over time, it is evident that there is clear seasonality with a repeating high to low pattern occurring every year. The variation in the data also appears to slightly decrease over time, with larger variability in seasonality seen in the beginning of the data set, and on average declining with time. In other words, amplitude of the seasonal changes decreases with the overall trend. Additionally, there appears to be a linear downward trend, indicating that from 2008, the overall average nitrogen dioxide levels in London have decreased steadily. Figure 1 also demonstrates what appears to be an outlier at the end of 2016, with a large spike in nitrogen dioxide levels when compared to peak levels observed from 2014 onward.
+
+While this graph illustrates the undisputable presence of seasonality a more in depth visualisation and analysis of this trend is required.
+   
+
+```{r Acf}
+ggAcf(no2)+
+  ggtitle ("Autocorrolation in N02 levels over time")+
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=16))
+```
+**Figure 2**: Autocorrelation in N02 levels over time
+
+Autocorrelation is the correlational dependency of order k between each i'th element of the series and the (i-k)'th element (Kendall, 1976). Hence, it can be utilised to identify the presence and the frequency of the seasonality. Figure 2, shows that there is definite seasonality within the data set, with a lag of 12 illustrating a cycle. This can be attributed to a full year, indicating that yearly seasonal fluctuations are present in London's nitrogen dioxide levels.
+ 
+
+```{r seasonality}
+ggseasonplot(no2)+
+  ggtitle ("Seasonal N02 levels in London by year")+
+  ylab("NO2 (ug/m3)")+
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=16))
+
+```
+**Figure 3**: Seasonal N02 levels in London by year
+
+Figure 3 further highlights the presence of yearly seasonality within the data set, with clear lower recorded levels of Nitrogen Dioxide in the summer months (June to August) and higher levels through the winter. It is also evident that the variations in NO2 level between years is much lower in the summer compared to the winter. The winter months show a much higher variation in NO2 levels, with clear outliers evident such as a peak in February of 2008 and a uncharacteristic low in December of 2014.
+
+
+```{r ggsubseries}
+ggsubseriesplot(no2)+
+  ggtitle ("Subseries N02 levels in London by month ")+
+  ylab("NO2 (ug/m3)")+
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=16))
+```
+**Figure 4**: Subseries N02 levels in London by month
+
+Figure 4 illustrates that July has the lowest average nitrogen dioxide levels of approximately 25ug/m3 while January experiences the highest at around 43ug/m3. It also serves to further highlight the notion that the summer has a much lower variation between each years. This is clear by the lower range of fluctuation of the lines depicting nitrogen dioxide levels of June, July and August, when compared to the other months. From this graph, the overall negative trend is also evident as each month illustrates a general downward trend.
+
+
+```{r comparison with Ozone, eval=FALSE}
+autoplot(no2, series = "NO2")+
+  autolayer(ozone)+
+  scale_y_continuous(limits=c(0,70))+
+  ggtitle ("Monthly NO2 and Ozone levels in London")+
+  ylab("NO2 (ug/m3)")+
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=16))+
+  labs(colour = "Pollutant")
+```
+
+
+##Data Pre-Processing/Cleaning/Preparation
+The dataset taken from the government website was a csv file containing 14 variables and their corresponding date. The data set was in tidy form, so no structural manipulation was required. The data set contained some missing values for measurements of nitric oxide from 2008 - 2010, however this missing data was concluded to be irrelevant as the analysis focused on nitrogen dioxide. The two outliers identified in the visualisation analysis were left in the data set as they were within an acceptable range of nitrogen dioxide levels expected.   
+
+Additionally, of the fourteen variables, only two  were of interest (NO2 and Ozone), once imported into R using the `read.csv` function, the relevant data had to be classed as time series objects. The `ts` function was utilised.
+
+##Method Formulation
+```{r partitioning}
+training_no2 <- window(no2,end=c(2017,6))
+test_no2<-window(no2,start = c(2017,7))
+```
+The overall objective of this report is to develop a suitable model which best forecasts the levels of NO2 in London. To analyse the most effective forecasting method, the data set is partitioned into a training set and a test set. The training set is used to train the model, from which the predicted forecasts are compared to the test set to assess the effectiveness and accuracy of the model.  
+
+
+The training data set ranges from January 2008 to June 2017, and has `r length(training_no2)` observations. The test set has data from July 2017 to December 2018 and has `r length(test_no2)` observations. This places 86% of the data in the training set.
+
+  
+```{r smoothing methods}
+h = length(test_no2)
+fit.snaive<- fitted(snaive(training_no2,lambda = "auto"))
+fit.hw.m<- hw(training_no2, h = h, seasonal = "multiplicative")
+fit.hw.m.d<- hw(training_no2, h = h, seasonal = "multiplicative", damped = T)
+fit.ets<- ets(training_no2)
+
+for.snaive<- snaive(training_no2,h=h,lambda = "auto")
+for.ets<- forecast(fit.ets,h=h)
+```
+
+Four models will be analysed. One simple forecasting method, two exponential smoothing models and the inbuilt R function ets. 
+
+Seasonal Naive model has been selected to be used as the simple forecasting method. This method, forecasts the future season to be equal to that of the previous season. Hence, unlike the other potential simple forecasting methods such as moving averages, drift, and simple naive, the seasonal naive method will capture the seasonality identified in the dataset. A box cox transformation has also been implemented with a lambda equal to `r BoxCox.lambda(training_no2)`. 
+
+The two exponential smoothing models were chosen to be variations of Holt- Winters seasonal methods, these methods take into account both the seasonality and trend in the data. As the data experienced variable seasonality with the level of the time series, a multiplicative method was selected. The two final methods analysed were a Holt- Winters method with multiplicative seasonality and a  Holt- Winters method with multiplicative seasonality and dampening. The dampening effect is predicted to have a positive effect on accuracy when forecasting long term predictions. 
+
+Finally R's inbuilt ETS function was used. This function selects the best exponential smoothing method with the optimal AICc value. 
+
+Models were fit to the training set, and the following parameters, initial values and within sample accuracy are calculated.
+
+```{r accuracy of methods}
+acc.snaive<- accuracy(for.snaive,test_no2)
+acc.hw.m<-accuracy(fit.hw.m, test_no2) 
+acc.hw.m.d<- accuracy(fit.hw.m.d, test_no2) 
+acc.ets<- accuracy(for.ets, test_no2)
+
+```
+
+**Table 1**: Parameters, initial values and within sample accuracy metrics of each selected method
+```{r table}
+### ADD S VALUES FOR EACH
+
+method_disc<-data.frame(row.names =c("alpha","beta","gamma","phi","l0","b0","s0","s1","s2","s3","s4","s5","s6","s7","s8","s9","s10","Training RMSE","Training MAPE","Training MASE"),
+       Seasonal.Naive= c(c(rep(NA,17)),acc.snaive[1,c(2,5,6)]),
+       Holt.Winters.Mult = c(fit.hw.m$model$par[1:3],NA,fit.hw.m$model$par[4:16],acc.hw.m[1,c(2,5,6)]),
+       Holt.Winters.Mult.Damp= c(fit.hw.m.d$model$par[1:17],acc.hw.m.d[1,c(2,5,6)]),
+       ETS=c(fit.ets$par[1:17],acc.ets[1,c(2,5,6)]))
+
+kable(method_disc) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+Table 1 illustrates that the Seasonal Naive method does not use parameters or initial values to calculate its forecast, rather it models based on the previous value from the same season, it uses a lag of 12 as the seasonality occurs yearly. Additionally it should be noted that MASE (mean absolute scaled error) is not a great predictor for seasonal Naive as it will inherently always be equal to 1 as the naive method is the benchmark for its calculation. 
+
+The ETS method chosen by the R function is described as `r fit.ets$method`. This indicates that the chosen model has multiplicative error, additive trend with dampening and multiplicative seasonality. Holt winters assumes an additive trend and multiplicative seasonality was identified in the method selection process to be appropriate. Hence it is likely that these models will behave very similarly as the difference between the three is the presence of dampening and the class of error which the ETS model captures as multiplicative.
+
+In the exponential smoothing methods, alpha indicates the level of smoothing performed on the level, beta on the coefficient for the trend smoothing, gamma on the magnitude of seasonal smoothing and phi on the degree of dampening. Alpha determines the weighting of past values on the prediction for the next forecast. From Table 1, it is evident that the basic Holt Winters method has a higher alpha indicating that it weighs more recent data greater than that of the method with dampening and the ETS model. Beta determines the amount that the recent data trends should be valued when compared to older trends. 
+
+The beta value for the holt winters with dampening is the highest of the three methods, indicating that this model will take into account the slope of the downward trend experienced by more recent observations compared to the others. In other words this model will account for the more recent trend compared to that of the basic holt winters method and the ETS method. Gamma indicates the weighting of seasonality, the higher the coefficient, the more weighting seasonality has on the forecast. Here it is evident that the ETS model has the highest gamma value, hence it takes into account the more recent seasonal patterns, and weighs them greater than the other two methods.
+
+Finally, phi is only present in the holt winters method with dampening and the ETS model, this is because these both have dampening features added which are captured by the value of phi. These values are approximately the same and are quite high (0.98) indicating that the effects on level and trend are only slightly dampened. 
+
+The training accuracy indicators illustrate the effectiveness of the within sample fit of each method and model. RMSE, MAPE and MASE were selected as appropriate metrics. The greater the accuracy the lower these values should be, hence across all three metrics, the ETS model "ETS(M,Ad,M)" is shown to have the best within sample fit.
+
+
+```{r fitted methods}
+autoplot(training_no2)+
+  autolayer(fit.snaive, series = "Seasonal Naive")+
+  autolayer(fit.hw.m$fitted, PI= F, series = "Holt winters - M")+
+  autolayer(fit.hw.m.d$fitted, PI= F, series = "Holt winters - M w. d")+
+  autolayer(for.ets$fitted, PI= F, series = "ets")+
+  ggtitle("Chosen Models and Methods fitted to within sample data -  NO2 levels in London")+
+  ylab("NO2 (ug/m3)")+
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=16))+
+  labs(colour = "Methods")
+
+```
+**Figure 5**: Chosen Models and Methods fitted to within sample data -  NO2 levels in London
+
+Figure 5 illustrates the fitted values for each of the methods and models chosen and summarised in Table 1. From the graph it is evident that the seasonal Naive method in general overestimates the NO2 levels as it takes the last values from each season. Hence it does not take into account the downward trend when evaluating the new values for that season. Additionally, as predicted, the ETS model and Holt winters methods behave very similarly. However, it is evident towards the more recent predictions, the ETS model generally over estimates the peaks, with the exception of the pre-identified outlier of December 2016. 
+
+
+The Holt Winters multiplicative seasonality method appears to have the best fit in the more recent observations, however it underestimated values in the earlier periods. Overall, the ETS model appears to have the greatest fit overall when analysing the entire time period. This observation aligns with the values calculated in Table 1.  However, it is important to highlight, this figure illustrates the within sample fit, and is not a great representation of the best forecasting method. 
+
+
+### Residual Diagnostics 
+It is important to check the residuals of each of the fitted methods and models. The residuals are the difference between the actual observed values and the fitted values. The function `check residuals` was used to perform the following analysis. A well fitted model should have residuals with a mean of zero and no significant auto correlation.  
+
+
+```{r residual diagnostic}
+checkresiduals(fit.snaive)
+```
+**Figure 6**: Residual diagnostics of the Seasonal Naive Method
+
+From Figure 6 it is evident that the residuals mean is not equal to zero, rather sits at approximately 35, additionally the ACF illustrates that autocorrelation is present in the residuals. These factors both indicate that there are uncaptured trends in the residuals and hence they are not classified as white noise or random. This illustrates that the Seasonal Naive Method is not accurate and will not produce accurate forecasts.
+
+
+```{r}
+checkresiduals(fit.hw.m, lag=24)
+```
+**Figure 7**:Residual diagnostics of the Holt Winters with Multiplicative Seasonality 
+
+The Ljund Box test indicates that with 24 lags there is no significant auto correlation in the residuals. Additionally, this is evident from the ACF illustrated in figure 7. Additionally, it is clear that the residuals are normally distributed and have a mean of zero. From this it can be concluded that the residuals are white noise and that the  Holt Winters method with Multiplicative Seasonality captures the trends and seasonality present in the data set.
+
+
+
+```{r}
+checkresiduals(fit.hw.m.d, lag=24)
+```
+**Figure 8**:Residual diagnostics of the Holt Winters with Multiplicative Seasonality and dampening  
+
+The Ljund Box test indicates that with 24 lags there is no significant auto correlation in the residuals. Additionally, this is evident from the ACF illustrated in figure 8. Additionally, it is clear that the residuals are normally distributed and have a mean of zero. From this it can be concluded that the residuals are white noise and that the  Holt Winters method with Multiplicative Seasonality and dampening captures the trends and seasonality present in the data set.
+
+```{r}
+checkresiduals(fit.ets)
+```
+**Figure 9**:Residual diagnostics of the ETS(M,Ad,M) model
+
+The Ljund Box test indicates that with 24 lags there is no significant auto correlation in the residuals. Additionally, this is evident from the ACF illustrated in figure 8. Additionally, it is clear that the residuals are normally distributed and have a mean of zero. From this it can be concluded that the residuals are white noise and that the ETS model captures the trends and seasonality present in the data set. 
+
+From these diagnostic checks, it is clear that the Holt Winters methods and the ETS model all have residuals categorised as white noise. However the seasonal Naive method has uncaptured trends in the residuals and hence they are not considered white noise.
+
+
+```{r forecasted methods}
+autoplot(no2)+
+  autolayer(for.snaive,PI= F, series = "Seasonal Naive")+
+  autolayer(fit.hw.m, PI= F, series = "Holt winters - M")+
+  autolayer(fit.hw.m.d, PI= F, series = "Holt winters - M w. d")+
+  autolayer(for.ets, PI= F, series = "ETS")+
+  ggtitle("Models and Methods for forecasting NO2 levels in London")+
+  ylab("NO2 (ug/m3)")+
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=16))+
+  labs(colour = "Methods")
+```
+**Figure 10**: Models and Methods for forecasting NO2 levels in London
+
+Figure 10 depicts the full data set of NO2 levels in London, from 2008 to 2018 along with the three methods and ETS model's predicted forecasts. It is clear that the Seasonal Naive model over predicted, as it has used the large spike that had been identified as an outlier as a point of reference for the sequential forecasts. The Holt winters with multiplicative seasonality with dampening appears to best fit the data. The ETS model over predicts through the peaks, especially in the later end of 2018. 
+
+## Evaluate forecasting methods/model 
+
+To evaluate the accuracy of our forecasts, we separated the available data into two portions, training and test data, where the training data is used to estimate any parameters of a forecasting method and the test data is used to evaluate its accuracy. Various factors were taken into consideration when evaluating our models. Firstly, the forecast error. This is the difference between an observed value and its forecast and is the unpredictable part of an observation. Forecast errors can be summarised in multiple ways. The Mean Absolute Error (MAE) is easy to both understand and compute. A forecast method that minimises the MAE will lead to forecasts of the median. The Root Mean Squared Error (RMSE) that is minimised will lead to forecasts of the mean. Next, the Mean Absolute Percentage Error (MAPE) which is given by pt=100et/yt. Thirdly, we use the Mean Absolute Scaled Error (MASE). This is an alternative to using percentage errors when comparing forecast accuracy across series with different units. They proposed scaling the errors based on the training MAE from a simple forecast method. 
+
+**Table 2**: Test Accuracy for each model
+```{r forecast accuracy}
+data.frame(row.names = c("Test RMSE","Test MAPE","Test MASE"),
+       Seasonal.naive = acc.snaive[2,c(2,5,6)],
+       Holt.winters.mult = acc.hw.m[2,c(2,5,6)],
+       Holt.winters.mult.damp= acc.hw.m.d[2,c(2,5,6)],
+       ETS=acc.ets[1,c(2,5,6)])%>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+```
+
+Table 2 illustrates the test accuracies using each of these evaluation methods. It is evident that the Holt Winters method with multiplicative seasonality appears to have the lowest values for each of the metrics. This means that it has the best fit when looking at the test data set.
+
+```{r forecast accuracy using CV h1 }
+f.hw.m <- function(x,h) {
+  forecast(snaive(x, seasonal = "multiplicative"), h = h)
+}
+f.hw.m.d<- function(x,h) {
+  forecast(hw(x, seasonal = "multiplicative", damped = TRUE), h = h)
+}
+
+f.ets<- function(x,h) {
+  forecast(ets(x, model="MAM",damped = TRUE), h = h)
+}
+
+cv.rmse.snaive<- sqrt(mean(tsCV(no2,snaive, h=1)^2,na.rm=T))
+cv.rmse.hw.m<- sqrt(mean(tsCV(no2,f.hw.m, h=1)^2,na.rm = T))
+cv.rmse.hw.m.d<- sqrt(mean(tsCV(no2,f.hw.m.d, h=1)^2,na.rm = T))
+cv.rmse.ets<- sqrt(mean(tsCV(no2,f.ets, h=1)^2,na.rm = T))
+
+```
+
+```{r forecast accuracy using CV h4}
+cv.rmse.snaive.robust<- sqrt(mean(tsCV(no2, snaive, h=4)^2,na.rm=T))
+cv.rmse.hw.m.robust<- sqrt(mean(tsCV(no2,f.hw.m, h=4)^2,na.rm = T))
+cv.rmse.hw.m.d.robust<- sqrt(mean(tsCV(no2,f.hw.m.d, h=4)^2,na.rm = T))
+cv.rmse.ets.robust<- sqrt(mean(tsCV(no2,f.ets, h=4)^2,na.rm = T))
+```
+
+Using the time series cross-validation, there are a series of test sets, each consisting of a single observation. The corresponding training set consists only of observations that occurred prior to the observation that forms the test set. Thus, no future observations can be used in constructing the forecast. Two Cross validations were performed, one with a h =1, to demonstrate short term forecasting and one with a h of 4. The cross validation set with a forecast horizon of 4 is aimed to check the robustness of the results. The RMSE values for each cross validation are given in Table 3
+
+**Table 3**: Root Mean Square Error for Cross Validation at H = 1 and H = 4
+
+```{r CV results}
+data.frame(
+  row.names = c("Holt w. Dampening","Holt-Winters Multiplicative",
+                "Holt-Winters Multiplicative w. Dampening","ETS"),
+            `RMSE h=1` = c(cv.rmse.snaive,cv.rmse.hw.m,cv.rmse.hw.m.d,cv.rmse.ets),
+            `RMSE h=4`  = c(cv.rmse.snaive.robust,cv.rmse.hw.m.robust,cv.rmse.hw.m.d.robust,cv.rmse.ets.robust))%>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+```
+
+From Table 3 it is evident that the RMSE for both H=1 and H=4 is lowest in the Holt Winters model with Multiplicative Seasonality and dampening. This is therefore the model that is selected as cross validation is a more sophisticated method of testing forecasts. 
+
+
+
+##Forecasting 
+The final model was selected to be Holt Winters with Multiplicative Seasonality and dampening as it had the lowest cross validation RMSE for both h=1 and h=4. A final model was developed with the entire no2 data set and Nitrogen dioxide levels were forecast over a 24 month period. Table 4 displays all the model parameters as well as the initial values. 
+
+**Table 4**: Final model parameters and initial values
+```{r final forecast}
+final.model<- hw(no2, seasonal = "multiplicative", damped = T)
+data.frame(
+       Holt.Winters.M.D= c(final.model$model$par[1:17]))%>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+final.forecast<-hw(no2,h=24, seasonal = "multiplicative", damped = T)
+```
+
+```{r final forecast plot}
+autoplot(no2)+
+  autolayer(final.forecast, PI=.95, series= "Forecast")+
+  ggtitle("Forecasted NO2 levels in London using Holt Winters with Multiplicative Seasonality and dampening")+
+  ylab("NO2 (ug/m3)")+
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=16))+
+  labs(colour = "Model")
+
+```
+**Figure 11**: Forecasted NO2 levels in London using Holt Winters with Multiplicative Seasonality and dampening
+
+Figure 11 illustrates that the NO2 levels forecasted have both seasonality, and follow the negative trend. They also follow the declining variance with time which was identified to be a feature of the data set. This forecast e and the prediction intervals appear reasonable. These forecasts could be used to accurately develop policies and mitigation stratgies using these forecasts as benchmarks for future Nitrogen Dioxide levels in London. 
+
+
+## Conclusion 
+Nitrogen Dioxide is a harmful pollutant that can cause harm to both humans and the planet. This study illustrates the seasonal nature of NO2 levels in London as well as the overall downward trend in levels. This is a positive for both citizens of London and the health of the earth. 
+
+While from forecasts it is clear that the levels of NO2 in London are decreasing over time policies should still be put in place to further reduce these NO2 levels to ensure the state of the planet. Furthermore, it is suggested that the levels of NO2 are monitored to ensure that these decreasing trends are maintained. 
+
+## References:
+Contreras, G., & Platania, F. (2019). Economic and policy uncertainty in climate change mitigation: The London Smart City case scenario. Technological Forecasting and Social Change, 142, 384–393. doi: 10.1016/j.techfore.2018.07.018
+
+London's ultra-low emission zone: good or bad idea? (2019, January 5). Retrieved from https://www.theguardian.com/environment/2019/jan/05/londons-ultra-low-emission-zone-good-or-bad-idea
+
+ Murray, Laura. PIA Victoria President [online]. Planning News, Vol. 45, No. 7, Aug 2019: 4. Availability: <https://search.informit.com.au/documentSummary;dn=547293336612437;res=IELENG> ISSN: 1329-2862.
+
+Sheridan, C. E., Roscoe, C. J., Gulliver, J., de Preux, L., & Fecht, D. (2019). Inequalities in Exposure to Nitrogen Dioxide in Parks and Playgrounds in Greater London. International journal of environmental research and public health, 16(17), 3194.
+
+Ultra Low Emission Zones: what you need to know: RAC Drive. (n.d.). Retrieved from https://www.rac.co.uk/drive/advice/emissions/ultra-low-emission-zones/
+
+
+
